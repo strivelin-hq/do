@@ -4,6 +4,27 @@ This guide provides step-by-step instructions for setting up, configuring, and h
 
 ---
 
+## Implementation & Hosting Checklist
+
+Here is a breakdown of what has been implemented and committed to your repository vs. what needs to be configured on the hosting infrastructure.
+
+### ✅ Done (Coded & In Repository)
+* [x] **Git & GitHub Setup**: Local workspace initialized as a Git repository, origin linked to [strivelin-hq/do](https://github.com/strivelin-hq/do.git), and code pushed to `main`.
+* [x] **Next.js Dynamic Base Path**: Updated `next.config.ts` to dynamically resolve `basePath` from `process.env.NEXT_PUBLIC_BASE_PATH`, allowing local dev on `/` and production on `/do`.
+* [x] **Multi-Stage Dockerfile**: Configured `Dockerfile` builder stage to accept `NEXT_PUBLIC_BASE_PATH` as a build argument so it is baked into static assets compiled during build.
+* [x] **Database Schema Drift Fixed**: Created `migrations/0002_add_target_date_recurrence.sql` to align the root migrations with local Supabase changes.
+* [x] **Schema Parity Test Suite**: Configured `./scripts/compare.sh` to run sequential vs migrated tests in Docker, guaranteeing migration safety.
+* [x] **Local Dev Script Fixes**: Corrected paths inside `./docs/dev_process.html` to `./scripts/xxx.sh` and linked it directly to this hosting guide.
+
+### 📋 To Be Done (Infrastructure Configuration)
+* [ ] **Supabase Cloud Projects**: Create two isolated projects (Staging & Production) on Supabase.
+* [ ] **DNS Records**: Point `strivelin.com` and `www.strivelin.com` to your public hosting IP.
+* [ ] **SSL Configuration**: Generate SSL certificates using Certbot (Let's Encrypt) or Cloudflare.
+* [ ] **Nginx Reverse Proxy**: Place Nginx in front of your containers and route the `/do` path.
+* [ ] **Supabase Auth Redirects**: Whitelist callback redirects (`https://www.strivelin.com/do/auth/callback`) in the production Supabase dashboard.
+
+---
+
 ## 1. GitHub & CI/CD Pipeline Setup
 
 To automate builds and ensure that no database schema drift reaches staging or production, use GitHub as your source of truth and configure CI/CD pipelines.
@@ -192,6 +213,44 @@ location /do {
     proxy_send_timeout 60s;
     proxy_read_timeout 60s;
 }
+
+#### Step 4.5: Custom Domain, DNS, and SSL Setup
+To serve your application securely under your own domain (`https://www.strivelin.com/do`), follow these steps:
+
+##### 1. DNS Configuration
+Log into your domain registrar/DNS provider (e.g. Cloudflare, GoDaddy, Namecheap) and create:
+* **A Record**: Point `@` (strivelin.com) to your server's public IPv4 address.
+* **CNAME Record**: Point `www` (www.strivelin.com) to `@` or directly to your server domain.
+
+##### 2. SSL/TLS Certificate Provisioning (Nginx & Let's Encrypt)
+Secure all web traffic with HTTPS. On your Nginx hosting server, use **Certbot** to automatically retrieve and configure Let's Encrypt certificates:
+1. Install Certbot and the Nginx plugin:
+   ```bash
+   sudo apt update
+   sudo apt install certbot python3-certbot-nginx
+   ```
+2. Request your certificates:
+   ```bash
+   sudo certbot --nginx -d strivelin.com -d www.strivelin.com
+   ```
+3. Certbot will automatically read your Nginx server block, configure the SSL certificates, set up HTTP to HTTPS redirection, and establish a systemd timer for automatic renewals (every 90 days).
+
+##### 3. Supabase Redirect URL Configuration
+To prevent Supabase authentication flows (such as Google OAuth or email validation links) from redirecting users back to local dev instead of production, you must whitelist the production redirect URLs in the Supabase Dashboard:
+1. Open your **Production Supabase Project** in the browser.
+2. Go to **Authentication** > **URL Configuration** in the sidebar.
+3. Under **Site URL**, enter: `https://www.strivelin.com/do`
+4. Under **Redirect URLs**, click **Add URL** and whitelist:
+   * `https://www.strivelin.com/do/**` (matches all sub-routes)
+   * `https://www.strivelin.com/do/auth/callback` (specific callback endpoint)
+5. Save changes.
+
+##### 4. Supabase Custom Domains (Optional, Pro plan)
+By default, your app connects to `<project-id>.supabase.co`. In production, this can result in browsers treating auth cookies as third-party, which might be blocked (especially in Safari). To resolve this, configure a custom domain for Supabase:
+1. In Supabase Dashboard, go to **Settings** > **Custom Domains**.
+2. Add a subdomain like `api.strivelin.com` or `supabase.strivelin.com`.
+3. Add the suggested CNAME and TXT validation records in your DNS provider settings.
+4. Once verified, update the `NEXT_PUBLIC_SUPABASE_URL` build variable of your Next.js app to point to your new custom domain (`https://api.strivelin.com`).
 ```
 
 ---
