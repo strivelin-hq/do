@@ -270,3 +270,46 @@ By default, your app connects to `<project-id>.supabase.co`. In production, this
 | **Migration Method** | Run on local script/manual | Manual or CI/CD pre-deploy | CI/CD Pre-deploy task (Single replica) |
 | **SSL Enforced** | Optional / Disabled | Enabled | Required |
 | **Scaling** | Single Instance | Single Instance | Multiple Replicas |
+
+---
+
+## 6. Vercel Deployment Guide (Production & Staging)
+
+Vercel provides native serverless hosting for Next.js, automatically handling scaling, SSL, and CD deployments.
+
+### Step 6.1: Connect Vercel to GitHub
+1. Go to [vercel.com](https://vercel.com) and Sign Up / Log In using the GitHub account that owns the repository.
+2. In the Vercel dashboard, click **Add New...** > **Project**.
+3. Under **Import Git Repository**, choose your repository: `strivelin-hq/do`.
+
+### Step 6.2: Configure Project Settings
+In the configuration screen:
+* **Framework Preset**: Next.js (automatically detected).
+* **Root Directory**: `./` (leave default).
+* **Build and Development Settings**: Keep defaults (Vercel uses `npm run build` automatically).
+
+### Step 6.3: Set Environment Variables
+Scroll down to **Environment Variables** and add the following keys:
+
+| Key | Value | Scope | Description |
+| :--- | :--- | :--- | :--- |
+| `NEXT_PUBLIC_BASE_PATH` | `/do` | Production | **CRITICAL**: Tells Next.js to compile pages and assets under the `/do` subpath. |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://fqlwvjjsjuwbbempjvyi.supabase.co` | Production | Your Production Supabase API endpoint. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable__E2lvV9hvnrYqOwWZ-vL7g_mq9qCpyo` | Production | Your Production Supabase public anon key. |
+| `SUPABASE_URL` | `https://fqlwvjjsjuwbbempjvyi.supabase.co` | Production | Your Production Supabase internal URL. |
+| `DATABASE_URL` | `postgres://postgres.fqlwvjjsjuwbbempjvyi:[your-password]@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres` | Production | Transaction Pooler URI (required for database migrations). |
+
+*(If you set up a Staging project, you can add Staging-scoped variables for the `staging` branch).*
+
+### Step 6.4: Deploy
+Click the **Deploy** button. Vercel will clone the code, compile the assets using Next.js with the `/do` basePath, and launch a preview URL.
+
+### Step 6.5: Configure Custom Domain on Vercel
+To map `https://www.strivelin.com/do` to Vercel:
+1. In your Vercel Project Dashboard, go to **Settings** > **Domains**.
+2. Click **Add** and enter `strivelin.com` (or `www.strivelin.com`).
+3. Vercel will detect your DNS registrar and show the required records:
+   * **For Apex Domain (`strivelin.com`)**: Set an **A record** pointing `@` to Vercel's IP `76.76.21.21`.
+   * **For Subdomain (`www.strivelin.com`)**: Set a **CNAME record** pointing `www` to `cname.vercel-dns.com`.
+4. Update these records inside your DNS provider settings (Cloudflare/Namecheap/etc.).
+5. Vercel will automatically verify the records, provision Let's Encrypt SSL certificates, and direct all requests under `https://www.strivelin.com/do` to your Next.js application.
