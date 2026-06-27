@@ -17,7 +17,7 @@ Here is a breakdown of what has been implemented and committed to your repositor
 * [x] **Local Dev Script Fixes**: Corrected paths inside `./docs/dev_process.html` to `./scripts/xxx.sh` and linked it directly to this hosting guide.
 
 ### 📋 To Be Done (Infrastructure Configuration)
-* [ ] **Supabase Cloud Projects**: Create two isolated projects (Staging & Production) on Supabase.
+* [ ] **Supabase Cloud Projects**: Staging project is to be created; Production project (**sldo**) is provisioned.
 * [ ] **DNS Records**: Point `strivelin.com` and `www.strivelin.com` to your public hosting IP.
 * [ ] **SSL Configuration**: Generate SSL certificates using Certbot (Let's Encrypt) or Cloudflare.
 * [ ] **Nginx Reverse Proxy**: Place Nginx in front of your containers and route the `/do` path.
@@ -164,14 +164,19 @@ Next.js compiles static asset paths and links at build time. Since production is
 ```bash
 docker build \
   --build-arg NEXT_PUBLIC_BASE_PATH="/do" \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL="https://your-prod-supabase.supabase.co" \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL="https://fqlwvjjsjuwbbempjvyi.supabase.co" \
   --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="your-prod-anon-key" \
   -t strivelin-do-prod .
 ```
 
-#### Step 4.2: Provision and Secure the Production Database
-1. Create your production database on Supabase Cloud.
-2. Ensure SSL is enforced: In Supabase Dashboard > Settings > Database, toggle **Enforce SSL on incoming connections**.
+#### Step 4.2: Secure the Production Database (Project: sldo)
+1. Your production database has been provisioned on Supabase Cloud:
+   * **Project name**: `sldo`
+   * **Project URL**: `https://fqlwvjjsjuwbbempjvyi.supabase.co`
+   * **Region**: Northeast Asia (Tokyo) (`ap-northeast-1`)
+2. Under **Settings** > **Database** > **Connection string**, select **URI** and find the pooled connection URL:
+   * **Transaction Pooler URL (Port 6543)**: `postgres://postgres.fqlwvjjsjuwbbempjvyi:[your-password]@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres`
+3. Ensure SSL is enforced: In the Supabase Dashboard, navigate to **Settings** > **Database**, scroll to **SSL Configuration**, and toggle **Enforce SSL on incoming connections**.
 
 #### Step 4.3: Securely Apply Production Database Migrations
 > [!IMPORTANT]
