@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Development Process & Architecture Guide</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.45);
+      --border-color: rgba(99, 102, 241, 0.2);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg);
+      background: radial-gradient(circle at top left, #1e1b4b 0%, #0f172a 100%);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    header h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+      background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    /* Process Flow Diagram */
+    .flow-diagram {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      position: relative;
+      margin-bottom: 4rem;
+    }
+
+    .flow-diagram::before {
+      content: '';
+      position: absolute;
+      left: 2.25rem;
+      top: 2rem;
+      bottom: 2rem;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent) 0%, rgba(99, 102, 241, 0.1) 100%);
+      z-index: 1;
+    }
+
+    .flow-block {
+      display: flex;
+      gap: 1.5rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .flow-badge {
+      width: 4.5rem;
+      height: 4.5rem;
+      border-radius: 50%;
+      background: #1e1b4b;
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .flow-block:hover .flow-badge {
+      transform: scale(1.1);
+      border-color: var(--accent-hover);
+      box-shadow: 0 0 25px rgba(99, 102, 241, 0.5);
+    }
+
+    .flow-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.75rem;
+      flex-grow: 1;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      transition: border-color 0.3s ease;
+    }
+
+    .flow-block:hover .flow-content {
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .flow-content h3 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-size: 1.25rem;
+      color: #f8fafc;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .script-tag {
+      font-family: ui-monospace, monospace;
+      font-size: 0.8rem;
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .flow-content p {
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+
+    .technical-details {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.85rem;
+      border-left: 3px solid var(--accent);
+      color: #cbd5e1;
+      margin-top: 0.5rem;
+    }
+
+    /* Comparison block highlight */
+    .flow-block.comparison .flow-badge {
+      border-color: var(--warning);
+      color: var(--warning);
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+    }
+
+    .flow-block.comparison:hover .flow-badge {
+      border-color: #fbbf24;
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.5);
+    }
+
+    .flow-block.comparison .technical-details {
+      border-left-color: var(--warning);
+    }
+
+    /* Version control box */
+    .version-infobox {
+      margin-top: 4rem;
+      background: rgba(16, 185, 129, 0.05);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 16px;
+      padding: 2rem;
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+    }
+
+    .version-icon {
+      font-size: 2rem;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      width: 4rem;
+      height: 4rem;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .version-text h3 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      color: #f8fafc;
+    }
+
+    .version-text p {
+      color: var(--text-muted);
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 640px) {
+      .flow-diagram::before {
+        display: none;
+      }
+      .flow-block {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .flow-badge {
+        width: 3.5rem;
+        height: 3.5rem;
+        font-size: 1.1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Development & Deployment Workflow</h1>
+      <p>A step-by-step breakdown of scripts, dockerization, database versioning, and parity comparison.</p>
+    </header>
+
+    <div class="flow-diagram">
+      
+      <!-- Block 1: Compiling -->
+      <div class="flow-block">
+        <div class="flow-badge">01</div>
+        <div class="flow-content">
+          <h3>Code Compilation <span class="script-tag">./scripts/build.sh</span></h3>
+          <p>Compiles the Next.js React and TypeScript codebase locally. This step is executed to identify any type mismatches, TypeScript syntax errors, or compiler warnings prior to packaging the application.</p>
+          <div class="technical-details">
+            $ npm run build<br>
+            # Executes: tsc -b && next build
+          </div>
+        </div>
+      </div>
+
+      <!-- Block 2: Staging -->
+      <div class="flow-block">
+        <div class="flow-badge">02</div>
+        <div class="flow-content">
+          <h3>Image Packaging <span class="script-tag">./scripts/stage.sh</span></h3>
+          <p>Assembles all necessary environment configuration files and packages the Next.js application into a production-ready, lightweight Docker image.</p>
+          <div class="technical-details">
+            $ docker compose build<br>
+            # Packages Next.js with a multi-stage release target to save space.
+          </div>
+        </div>
+      </div>
+
+      <!-- Block 3: Running -->
+      <div class="flow-block">
+        <div class="flow-badge">03</div>
+        <div class="flow-content">
+          <h3>Deployment & Auto-Migration <span class="script-tag">./scripts/run.sh</span></h3>
+          <p>Spins up the database container (PostgreSQL) and the application container. Once the database is online, the auto-migration script runs, executing any new sql migrations and updating the schema version table.</p>
+          <div class="technical-details">
+            $ docker compose up -d<br>
+            $ node scripts/migrate.js<br>
+            # Connects, checks `schema_migrations`, runs new SQL scripts, inserts new version.
+          </div>
+        </div>
+      </div>
+
+      <!-- Block 4: Stopping -->
+      <div class="flow-block">
+        <div class="flow-badge">04</div>
+        <div class="flow-content">
+          <h3>Teardown & Cleanup <span class="script-tag">./scripts/stop.sh</span></h3>
+          <p>Safely stops all running containers, closes database connections, and clears the virtual environment resources while keeping local database volumes intact.</p>
+          <div class="technical-details">
+            $ docker compose down<br>
+            # Shuts down containers, keeps database volumes preserved in Docker storage.
+          </div>
+        </div>
+      </div>
+
+      <!-- Block 5: Comparing -->
+      <div class="flow-block comparison">
+        <div class="flow-badge">05</div>
+        <div class="flow-content">
+          <h3>Schema Parity Check <span class="script-tag">./scripts/compare.sh</span></h3>
+          <p>Ensures database migrations are completely clean. It initializes two temporary databases in Docker: a fresh install (sequential migrations on an empty DB) and a migrated install (migrations applied onto an existing setup). It runs a schema comparison tool to detect columns, types, or policy drift.</p>
+          <div class="technical-details">
+            $ docker compose -f docker-compose.compare.yml up -d<br>
+            $ node scripts/compare-schemas.js<br>
+            # Queries catalogs, checks Tables, Columns, Constraints, and RLS policies.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Versioning details -->
+    <div class="version-infobox">
+      <div class="version-icon">v</div>
+      <div class="version-text">
+        <h3>Version Control in the Database</h3>
+        <p>To prevent database drift and ensure safe cloud deployments, the database contains a table named <code>schema_migrations</code>. Every time <code>scripts/migrate.js</code> runs, it checks this table to determine which migration scripts (e.g. <code>0001_create_goals_table.sql</code>, <code>0002_add_target_date_recurrence.sql</code>) have already been applied, ensuring database updates are sequential, predictable, and fully tracked.</p>
+      </div>
+    </div>
+
+    <!-- Deployment details -->
+    <div class="version-infobox" style="margin-top: 2rem; background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2);">
+      <div class="version-icon" style="background: rgba(99, 102, 241, 0.15); color: var(--accent); font-size: 1.5rem; display: flex; align-items: center; justify-content: center;">🚀</div>
+      <div class="version-text">
+        <h3>Cloud Hosting & Multi-Environment Setup</h3>
+        <p>Ready to deploy? Check out the step-by-step instructions for setting up GitHub repositories, Playground, Staging, and Production environments at the custom subpath: <a href="deployment_guide.md" style="color: var(--accent-hover); font-weight: bold; text-decoration: underline;">Deployment & Hosting Guide</a>.</p>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

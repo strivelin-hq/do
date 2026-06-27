@@ -1,0 +1,30 @@
+services:
+  db_fresh:
+    image: postgres:15-alpine
+    container_name: strivelpro_compare_fresh
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres_fresh
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres_fresh"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  db_migrated:
+    image: postgres:15-alpine
+    container_name: strivelpro_compare_migrated
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres_migrated
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres_migrated"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
