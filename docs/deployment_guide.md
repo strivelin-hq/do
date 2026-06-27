@@ -165,7 +165,7 @@ Next.js compiles static asset paths and links at build time. Since production is
 docker build \
   --build-arg NEXT_PUBLIC_BASE_PATH="/do" \
   --build-arg NEXT_PUBLIC_SUPABASE_URL="https://fqlwvjjsjuwbbempjvyi.supabase.co" \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="your-prod-anon-key" \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="sb_publishable__E2lvV9hvnrYqOwWZ-vL7g_mq9qCpyo" \
   -t strivelin-do-prod .
 ```
 
