@@ -313,3 +313,33 @@ To map `https://www.strivelin.com/do` to Vercel:
    * **For Subdomain (`www.strivelin.com`)**: Set a **CNAME record** pointing `www` to `cname.vercel-dns.com`.
 4. Update these records inside your DNS provider settings (Cloudflare/Namecheap/etc.).
 5. Vercel will automatically verify the records, provision Let's Encrypt SSL certificates, and direct all requests under `https://www.strivelin.com/do` to your Next.js application.
+
+### Step 6.6: Configure Staging Subdomain (`staging.strivelin.com/do`)
+To separate your staging tests from production, you can deploy a specific Git branch (like `staging` or `dev`) to a subdomain:
+
+1. **Add the Subdomain in Vercel**:
+   * Go to Vercel Project Dashboard > **Settings** > **Domains**.
+   * Click **Add** and enter `staging.strivelin.com`.
+   * In the configuration modal, change **Connect to an environment** from *Production* to **Preview**.
+   * Select your target **Git Branch** (e.g. `staging` or `dev`) from the dropdown.
+   * Click **Add**.
+
+2. **Add CNAME Record in Cloudflare**:
+   * Go to your Cloudflare DNS dashboard for `strivelin.com`.
+   * Click **+ Add record** and create:
+     * **Type**: `CNAME`
+     * **Name**: `staging`
+     * **Target**: `cname.vercel-dns.com`
+     * **Proxy Status**: ⚠️ **DNS Only (Grey Cloud)**.
+   * Click **Save**.
+
+3. **Configure Environment Variables for Staging**:
+   * Go to Vercel Project > **Settings** > **Environment Variables**.
+   * Since staging runs as a Vercel Preview environment, edit your variables to configure their scope:
+     * **`NEXT_PUBLIC_BASE_PATH`**: Edit this variable and ensure the **Preview** environment box is checked, with value `/do`. This ensures the staging site is accessible at `/do`.
+     * **Staging Database/Keys**: If you use a separate staging Supabase database, create new variables for `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `DATABASE_URL` with their values pointed to the staging project, and check the **Preview** scope box *exclusively* for these (unchecking Production).
+
+4. **Configure Staging Redirects in Supabase**:
+   * If using a separate Staging Supabase project, go to **Authentication** > **URL Configuration** inside that project's dashboard and whitelist:
+     * **Site URL**: `https://staging.strivelin.com/do`
+     * **Redirect URLs**: `https://staging.strivelin.com/do/auth/callback`
