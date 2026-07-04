@@ -133,6 +133,7 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
   
   const [goals, setGoals] = useState<Goal[]>(sortGoals(initialGoals))
   const [newGoalText, setNewGoalText] = useState('')
+  const [headerInputValue, setHeaderInputValue] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   
@@ -165,6 +166,10 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
   const [newIsRecurring, setNewIsRecurring] = useState(false)
   const [newRecurrenceRule, setNewRecurrenceRule] = useState('daily')
 
+  // Popup target modal state
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+
   // Visual toggle sliding state
   const [animatingId, setAnimatingId] = useState<string | null>(null)
 
@@ -186,69 +191,10 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
     setGoals(sortGoals(initialGoals))
   }, [initialGoals])
 
-  // Auto-spawn recurring goal instances on dashboard load
-  const spawnRecurringGoals = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const recurringTemplates = goals.filter(g => g.is_recurring && !g.completed && !g.recurrence_parent_id)
-
-    for (const template of recurringTemplates) {
-      const today = todayStr()
-
-      const existingChild = goals.find(g =>
-        g.recurrence_parent_id === template.id &&
-        g.target_date === today &&
-        !g.completed
-      )
-
-      if (existingChild) continue
-
-      const completedChild = goals.find(g =>
-        g.recurrence_parent_id === template.id &&
-        g.target_date === today &&
-        g.completed
-      )
-
-      if (completedChild) continue
-
-      const newId = crypto.randomUUID()
-      const newGoal: Goal = {
-        id: newId,
-        title: template.title,
-        completed: false,
-        tags: [...template.tags],
-        created_at: new Date().toISOString(),
-        target_date: today,
-        is_recurring: false,
-        recurrence_rule: null,
-        recurrence_parent_id: template.id
-      }
-
-      setGoals(prev => sortGoals([...prev, newGoal]))
-
-      await supabase.from('goals').insert({
-        id: newId,
-        user_id: user.id,
-        title: template.title,
-        completed: false,
-        tags: template.tags,
-        target_date: today,
-        is_recurring: false,
-        recurrence_rule: null,
-        recurrence_parent_id: template.id
-      })
-    }
-  }, [goals, supabase])
-
-  // Run auto-spawn once on mount
-  const hasSpawned = useRef(false)
+  // Reset pagination page to 1 when filters change
   useEffect(() => {
-    if (!hasSpawned.current && goals.length > 0) {
-      hasSpawned.current = true
-      spawnRecurringGoals()
-    }
-  }, [goals.length, spawnRecurringGoals])
+    setCurrentPage(1)
+  }, [dateView, statusFilter, selectedTag])
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -269,7 +215,7 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
 
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault()
-        inputRef.current?.focus()
+        setShowAddModal(true)
       } else if (e.key === '1') {
         setStatusFilter('all')
       } else if (e.key === '2') {
@@ -540,23 +486,17 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
     }
   }
 
-  // 1. Filter Goals based on status filter & tag filter
-  const statusFiltered = goals.filter(goal => {
-    const matchesStatus = 
-      statusFilter === 'all' || 
-      (statusFilter === 'pending' && !goal.completed) ||
-      (statusFilter === 'completed' && goal.completed)
-    
-    const matchesTag = !selectedTag || goal.tags.includes(selectedTag)
-    return matchesStatus && matchesTag
-  })
-
-  // 2. Further Filter by dateView Slider
+  // 1. Filter by dateView Slider & selectedTag (independent of statusFilter)
   const today = todayStr()
   const yesterday = yesterdayStr()
   const tomorrow = tomorrowStr()
 
-  const filteredGoals = statusFiltered.filter(goal => {
+  const dateAndTagFiltered = goals.filter(goal => {
+    // tag filter
+    if (selectedTag && !goal.tags.includes(selectedTag)) {
+      return false
+    }
+    // date filter
     if (dateView === 'inbox') {
       return !goal.target_date
     }
@@ -573,12 +513,30 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
     return true
   })
 
-  const pendingGoals = filteredGoals.filter(g => !g.completed)
-  const completedGoals = filteredGoals.filter(g => g.completed)
+  // Calculate status counts on date-and-tag filtered subset
+  const countAll = dateAndTagFiltered.length
+  const countPending = dateAndTagFiltered.filter(g => !g.completed).length
+  const countCompleted = dateAndTagFiltered.filter(g => g.completed).length
 
-  const countAll = goals.length
-  const countPending = goals.filter(g => !g.completed).length
-  const countCompleted = goals.filter(g => g.completed).length
+  // 2. Finally apply status filter to get list to display
+  const filteredGoals = dateAndTagFiltered.filter(goal => {
+    if (statusFilter === 'all') return true
+    if (statusFilter === 'pending') return !goal.completed
+    if (statusFilter === 'completed') return goal.completed
+    return true
+  })
+
+  const PAGE_SIZE = 8
+  const totalPages = Math.ceil(filteredGoals.length / PAGE_SIZE)
+  const verifiedPage = Math.min(currentPage, Math.max(1, totalPages))
+  
+  const paginatedGoals = filteredGoals.slice(
+    (verifiedPage - 1) * PAGE_SIZE,
+    verifiedPage * PAGE_SIZE
+  )
+
+  const pendingGoals = paginatedGoals.filter(g => !g.completed)
+  const completedGoals = paginatedGoals.filter(g => g.completed)
 
   // Initials for avatar
   const initials = userEmail
@@ -591,7 +549,40 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
         <div className="header-logo-row">
           <h1><span className="brand-company">Strivelin</span> Do</h1>
           
+          <input
+            type="text"
+            className="header-quick-input"
+            value={headerInputValue}
+            onChange={(e) => setHeaderInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (headerInputValue.trim()) {
+                  setNewGoalText(headerInputValue)
+                  setHeaderInputValue('')
+                  setShowAddModal(true)
+                }
+              }
+            }}
+            placeholder="Type here to add target..."
+          />
+          
           <div className="header-actions">
+            <button 
+              type="button" 
+              className="icon-action-btn"
+              onClick={() => {
+                if (headerInputValue.trim()) {
+                  setNewGoalText(headerInputValue)
+                  setHeaderInputValue('')
+                }
+                setShowAddModal(true)
+              }}
+              title="Add New Target (N)"
+            >
+              <Plus size={18} />
+            </button>
+
             <button 
               type="button" 
               className="icon-action-btn"
@@ -624,96 +615,108 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
         </div>
       </header>
 
-      {/* Spotlight Input Box */}
-      <form onSubmit={handleAddGoal} className="spotlight-wrapper" style={{ position: 'relative' }}>
-        <div className="spotlight-input-row">
-          <Plus className="spotlight-icon" size={24} />
-          <input
-            ref={inputRef}
-            type="text"
-            className="spotlight-input"
-            placeholder="What is your next target? Add inline tags using /tag (e.g. Write reports /work)"
-            value={newGoalText}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onKeyDown={handleInputKeyDown}
-            autoFocus
-          />
-        </div>
+      {/* Floating Action Button (WhatsApp Style) */}
+      <button 
+        type="button" 
+        className="fab-btn" 
+        onClick={() => setShowAddModal(true)}
+        title="Add New Target (N)"
+      >
+        <Plus size={24} />
+      </button>
 
-        {/* Suggestions dropdown */}
-        {showDropdown && dropdownTags.length > 0 && (
-          <div className="tag-dropdown">
-            {dropdownTags.map((tag, idx) => (
-              <div
-                key={tag}
-                className={`tag-dropdown-item ${idx === activeDropdownIndex ? 'active' : ''}`}
-                onClick={() => selectDropdownTag(tag)}
-              >
-                #{tag}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Always-visible options row: Target Date + Recurrence */}
-        <div className="form-extras-row">
-          <div className="form-extra-item">
-            <Calendar size={14} />
-            <label>Due date</label>
-            <input
-              type="date"
-              className="date-input"
-              value={newTargetDate}
-              onChange={(e) => setNewTargetDate(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              min={todayStr()}
-            />
-            {newTargetDate && (
-              <button type="button" className="clear-date-btn" onClick={() => setNewTargetDate('')}>
-                <X size={12} />
+      {/* Add Target Modal Dialog */}
+      {showAddModal && (
+        <div className="add-modal-overlay" onClick={() => { setShowAddModal(false); setNewGoalText(''); }}>
+          <div className="add-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="add-modal-header">
+              <h3>New Goal</h3>
+              <button className="add-modal-close" onClick={() => { setShowAddModal(false); setNewGoalText(''); }}>
+                <X size={18} />
               </button>
-            )}
-          </div>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault()
+              await handleAddGoal()
+              setShowAddModal(false)
+            }} className="add-modal-form">
+              <div className="spotlight-input-row" style={{ border: '1px solid var(--border)', borderRadius: '6px', margin: '0.5rem 0' }}>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="spotlight-input"
+                  placeholder="e.g. Write report /work"
+                  value={newGoalText}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                  autoFocus
+                  style={{ paddingLeft: '0.5rem' }}
+                />
+              </div>
 
-          <div className="form-extra-item">
-            <Repeat size={14} />
-            <label className="recurring-toggle-label">
-              <input
-                type="checkbox"
-                checked={newIsRecurring}
-                onChange={(e) => setNewIsRecurring(e.target.checked)}
-                onClick={(e) => e.stopPropagation()}
-              />
-              Recurring
-            </label>
-            {newIsRecurring && (
-              <select
-                className="recurrence-select"
-                value={newRecurrenceRule}
-                onChange={(e) => setNewRecurrenceRule(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {RECURRENCE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            )}
+              {/* Suggestions dropdown */}
+              {showDropdown && dropdownTags.length > 0 && (
+                <div className="tag-dropdown" style={{ position: 'relative', top: 'auto', left: 'auto', right: 'auto', width: '100%', borderTop: '1px solid var(--border)' }}>
+                  {dropdownTags.map((tag, idx) => (
+                    <div
+                      key={tag}
+                      className={`tag-dropdown-item ${idx === activeDropdownIndex ? 'active' : ''}`}
+                      onClick={() => selectDropdownTag(tag)}
+                    >
+                      #{tag}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Due Date & Recurrence selectors */}
+              <div className="modal-extras-grid">
+                <div className="modal-extra-item">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Calendar size={14} /> Due date
+                  </label>
+                  <input
+                    type="date"
+                    className="date-input"
+                    value={newTargetDate}
+                    onChange={(e) => setNewTargetDate(e.target.value)}
+                    min={todayStr()}
+                  />
+                </div>
+
+                <div className="modal-extra-item">
+                  <label className="recurring-toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={newIsRecurring}
+                      onChange={(e) => setNewIsRecurring(e.target.checked)}
+                    />
+                    Recurring
+                  </label>
+                  {newIsRecurring && (
+                    <select
+                      className="recurrence-select"
+                      value={newRecurrenceRule}
+                      onChange={(e) => setNewRecurrenceRule(e.target.value)}
+                    >
+                      {RECURRENCE_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-submit-row" style={{ marginTop: '1rem' }}>
+                <button type="submit" className="auth-btn" style={{ width: '100%' }}>
+                  Add
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-
-        <div className="spotlight-footer">
-          <span>
-            {newGoalText.trim() ? (
-              <>Press <kbd>Enter</kbd> to add target</>
-            ) : (
-              <>Tip: Use tags to categorize like <code>/work</code> or <code>/health</code></>
-            )}
-          </span>
-          <div className="shortcuts">
-            <span>Focus: <kbd>Esc</kbd> / <kbd>N</kbd></span>
-          </div>
-        </div>
-      </form>
+      )}
 
       {/* Date Slider Selector */}
       <div className="date-view-slider">
@@ -766,34 +769,22 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
           </button>
         </div>
 
-        <div className="shortcuts" style={{ fontSize: '0.8rem', color: '#64748b' }}>
-          Filters: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>
+        <div className="filter-dropdown-wrapper">
+          <select 
+            value={selectedTag || ''} 
+            onChange={(e) => {
+              setSelectedTag(e.target.value || null)
+              setCurrentPage(1)
+            }}
+            className="tag-filter-select"
+          >
+            <option value="">All Tags</option>
+            {availableTags.map(tag => (
+              <option key={tag} value={tag}>#{tag}</option>
+            ))}
+          </select>
         </div>
       </div>
-
-      {/* Quick Tag Filtering Bar */}
-      {availableTags.length > 0 && (
-        <div className="tags-bar">
-          <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-            <Filter size={12} /> Tags:
-          </span>
-          <button 
-            onClick={() => setSelectedTag(null)} 
-            className={`tag-filter ${!selectedTag ? 'active' : ''}`}
-          >
-            All
-          </button>
-          {availableTags.map(tag => (
-            <button
-              key={tag}
-              onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-              className={`tag-filter ${selectedTag === tag ? 'active' : ''}`}
-            >
-              #{tag}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Goals Content List — swipable container */}
       <div 
@@ -870,6 +861,45 @@ export default function DashboardClient({ initialGoals, userEmail }: DashboardCl
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="pagination-container">
+          <button 
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={verifiedPage === 1}
+            className="page-btn nav-btn"
+            title="Previous Page"
+          >
+            &lt;
+          </button>
+          
+          {Array.from({ length: totalPages }).map((_, idx) => {
+            const pageNum = idx + 1
+            return (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => setCurrentPage(pageNum)}
+                className={`page-btn ${verifiedPage === pageNum ? 'active' : ''}`}
+              >
+                {pageNum}
+              </button>
+            )
+          })}
+
+          <button 
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={verifiedPage === totalPages}
+            className="page-btn nav-btn"
+            title="Next Page"
+          >
+            &gt;
+          </button>
+        </div>
+      )}
 
       {/* Help Dialog Modal */}
       {showHelpModal && (
